@@ -137,6 +137,7 @@ class Array(core.Parameter):
         self.integer = False
         self.exponent: tp.Optional[float] = None
         self.bounds: tp.Tuple[tp.Optional[np.ndarray], tp.Optional[np.ndarray]] = (None, None)
+        self.bounds_rollover = False
         self.bound_transform: tp.Optional[trans.BoundTransform] = None
         self.full_range_sampling = False
         self._ref_data: tp.Optional[np.ndarray] = None
@@ -197,7 +198,39 @@ class Array(core.Parameter):
         child.set_standardized_data(new_data - self._get_ref_data(), deterministic=False)
         child.heritage["lineage"] = child.uid
         return child
-
+    
+    def vector(
+        self: A,
+        source: A,
+        destination: A
+    ) -> A:
+        vector = destination - source
+        if self.bounds_rollover:
+            assert( len( self.bounds ) == len( vector ) )
+            assert( len( self.bounds[0] ) == 2 )
+            for i in range( 0, len( vector ) ):
+                span = self.bounds[ i ][ 1 ] - self.bounds[ i ][ 0 ]
+                print( "span", span )
+                s = source[ i ]
+                while s < self.bounds[ i ][ 0 ]:
+                    s += span
+                while s > self.bounds[ i ][ 1 ]:
+                    s -= span
+                d = destination[ i ]
+                while d < self.bounds[ i ][ 0 ]:
+                    d += span
+                while d > self.bounds[ i ][ 1 ]:
+                    d -= span
+                dist = abs( d - s )
+                rdist = span - dist
+                if dist > rdist:
+                    if d < s:
+                        vector[i] = rdist
+                    else:
+                        vector[i] = -rdist
+                print( source[i], s, destination[i], d, self.bounds[ i ][ 0 ], self.bounds[ i ][ 1 ], vector[i] )
+        return vector
+    
     # pylint: disable=unused-argument
     def set_bounds(
         self: A,
@@ -207,6 +240,7 @@ class Array(core.Parameter):
         full_range_sampling: tp.Optional[bool] = None,
         a_min: BoundValue = None,
         a_max: BoundValue = None,
+        rollover: bool = False
     ) -> A:
         """Bounds all real values into [lower, upper] using a provided method
 
@@ -242,6 +276,7 @@ class Array(core.Parameter):
         - "tanh" reaches the boundaries really quickly, while "arctan" is much softer
         - only "clipping" accepts partial bounds (None values)
         """  # TODO improve description of methods
+        self.bounds_rollover = rollover
         lower, upper = _a_min_max_deprecation(**locals())
         bounds = tuple(a if isinstance(a, np.ndarray) or a is None else np.array([a], dtype=float) for a in (lower, upper))
         both_bounds = all(b is not None for b in bounds)
