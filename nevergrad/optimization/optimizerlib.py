@@ -687,7 +687,9 @@ class PSO(base.Optimizer):
         parent_best_x = self._get_boxed_data(particle.heritage.get("best_parent", particle))
         rp = self._rng.uniform(0.0, 1.0, size=self.dimension)
         rg = self._rng.uniform(0.0, 1.0, size=self.dimension)
-        speed = self._omega * speed + self._phip * rp * (parent_best_x - x) + self._phig * rg * (global_best_x - x)
+        vec_to_global_best = self.parametrization.vector( x, global_best_x )
+        vec_to_parent_best = self.parametrization.vector( x, parent_best_x )
+        speed = self._omega * speed + self._phip * rp * vec_to_parent_best + self._phig * rg * vec_to_global_best
         data = speed + x
         if self._eps is not None:
             data = np.clip(data, self._eps, 1 - self._eps)
